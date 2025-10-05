@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard AKF01 - Atualização Automática</title>
+    <!-- Carregando Tailwind CSS para Estilização -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Carregando Chart.js para Visualização de Dados -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
+    <!-- Configuração de fontes e cores para Tailwind -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-light': '#F3F4F6',
+                        'card-bg': '#ffffff',
+                        'accent-blue': '#1e40af',
+                        'accent-green': '#10b981',
+                        'dark-text': '#1f2937',
+                        'equipamento-color': '#ef4444',
+                        'shift-color': '#8b5cf6',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-primary-light text-dark-text font-sans p-4 md:p-10">
+
+    <div class="max-w-7xl mx-auto">
+        <!-- Título do Dashboard -->
+        <header class="mb-10">
+            <h1 class="text-4xl font-extrabold text-accent-blue pb-2">
+                Painel de Controle de Manutenção AQF / AKF01
+            </h1>
+            <!-- O status é atualizado via JavaScript, mas o texto inicial serve como guia -->
+            <p id="data-status" class="text-sm text-green-600 font-semibold mt-1">
+                ✅ Dados da AKF01 carregados com sucesso (conteúdo estático).
+            </p>
+            <p class="text-gray-500 mt-1">Análise de Quebras (AKF01) e Performance de Reparo (MTTR).</p>
+        </header>
+
+        <!-- Seção de Cartões KPI -->
+        <section id="kpi-cards" class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+
+            <!-- Cartão 1: Quantidade de Natureza da Quebra (VALOR CALCULADO AUTOMATICAMENTE) -->
+            <div class="bg-card-bg p-6 rounded-xl shadow-2xl border-b-8 border-accent-blue transition duration-300 hover:shadow-xl hover:scale-[1.03]">
+                <p class="text-sm font-semibold uppercase text-gray-500">Quantidade de Natureza da Quebra</p>
+                <p id="kpi-ocorrencias" class="text-5xl font-extrabold mt-2 text-dark-text">0</p>
+                <p class="text-xs text-green-600 mt-1">Total de registros de quebra válidos.</p>
+            </div>
+
+            <!-- Cartão 2: Total de Downtime (Min) (VALOR CALCULADO AUTOMATICAMENTE) -->
+            <div class="bg-card-bg p-6 rounded-xl shadow-2xl border-b-8 border-red-500 transition duration-300 hover:shadow-xl hover:scale-[1.03]">
+                <p class="text-sm font-semibold uppercase text-gray-500">Total Downtime (Min)</p>
+                <p id="kpi-downtime" class="text-5xl font-extrabold mt-2 text-dark-text">0</p>
+                <p class="text-xs text-red-600 mt-1">Impacto Crítico em Produção (Soma Setores).</p>
+            </div>
+
+            <!-- Cartão 3: MTTR (Minutos) (VALOR CALCULADO AUTOMATICAMENTE) -->
+            <div class="bg-card-bg p-6 rounded-xl shadow-2xl border-b-8 border-accent-green transition duration-300 hover:shadow-xl hover:scale-[1.03]">
+                <p class="text-sm font-semibold uppercase text-gray-500">MTTR (Minutos)</p>
+                <p id="kpi-mttr" class="text-5xl font-extrabold mt-2 text-dark-text">0.00</p>
+                <p class="text-xs text-accent-green mt-1">Tempo Médio para Reparo.</p>
+            </div>
+
+            <!-- Cartão 4: Equipamento Crítico (TOP EQUIPAMENTO COM MAIOR DOWNTIME) -->
+            <div class="bg-card-bg p-6 rounded-xl shadow-2xl border-b-8 border-yellow-500 transition duration-300 hover:shadow-xl hover:scale-[1.03]">
+                <p class="text-sm font-semibold uppercase text-gray-500">Equipamento Crítico</p>
+                <p id="kpi-top-equipamento" class="text-4xl font-bold mt-2 text-dark-text">N/A</p>
+                <p class="text-xs text-yellow-600 mt-1">Maior Downtime (Calculado)</p>
+            </div>
+
+        </section>
+
+        <!-- Seção de Gráficos (Row 1: 3 Colunas de Análise Frequencial) -->
+        <section id="charts" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <div class="lg:col-span-1 bg-card-bg p-6 rounded-xl shadow-lg">
+                <h3 class="text-xl font-semibold mb-4 text-dark-text">1. Distribuição de Quebras por Natureza</h3>
+                <div class="h-64">
+                    <canvas id="chartNatureza"></canvas>
+                </div>
+            </div>
+
+            <div class="lg:col-span-1 bg-card-bg p-6 rounded-xl shadow-lg">
+                <h3 class="text-xl font-semibold mb-4 text-dark-text">2. Top 5 Setores por Tempo de Parada</h3>
+                <div class="h-64">
+                    <canvas id="chartSetores"></canvas>
+                </div>
+            </div>
+
+            <div class="lg:col-span-1 bg-card-bg p-6 rounded-xl shadow-lg">
+                <h3 class="text-xl font-semibold mb-4 text-dark-text">3. Top 5 Mantenedores por Ocorrências</h3>
+                <div class="h-64">
+                    <canvas id="chartTecnicos"></canvas>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Seção de Gráficos (Row 2: 3 Colunas de Análise Crítica) -->
+        <section id="charts-row2" class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+
+            <div class="lg:col-span-1 bg-card-bg p-6 rounded-xl shadow-lg">
+                <h3 class="text-xl font-semibold mb-4 text-dark-text">4. Tendência Mensal de Falhas (Frequência)</h3>
+                <div class="h-80">
+                    <canvas id="chartTendencia"></canvas>
+                </div>
+            </div>
+
+            <div class="lg:col-span-1 bg-card-bg p-6 rounded-xl shadow-lg">
+                <h3 class="text-xl font-semibold mb-4 text-dark-text">5. Ocorrências por Turno (Frequência)</h3>
+                <div class="h-80">
+                    <canvas id="chartTurno"></canvas>
+                </div>
+            </div>
+
+            <div class="lg:col-span-1 bg-card-bg p-6 rounded-xl shadow-lg">
+                <h3 class="text-xl font-semibold mb-4 text-dark-text">6. Top 5 Equipamentos por Downtime (Min)</h3>
+                <div class="h-80">
+                    <canvas id="chartEquipamentos"></canvas>
+                </div>
+            </div>
+
+        </section>
+
+    </div>
+
+    <script>
+        // ***************************************************************
+        // SOLUÇÃO DO ERRO CORS: DADOS CSV INCORPORADOS DIRETAMENTE NO CÓDIGO
+        // ***************************************************************
+        const rawCSVData = `NATUREZA DA QUEBRA,Data Inicio:  ,ID ORDEM,Hora Inicio: ,Hora fim: ,SOLICITANTE:,Numero da O.M: ,TURNO,Setor: ,Equipamento: ,DESCRIÇÃO DA OCORRÊNCIA:,2 - Ação de Remoção de Sintoma,MANTEDEDOR,STATUS,HORA DE ATENDIMENTO,OBSERVAÇAO/PENDÊNÇIA,MATERIAL UTILIZADO,- ANALISE DAS CAUSAS DA FALHA/QUEBRA (5 POR QUE),POR QUE (1)?,POR QUE (2)?,POR QUE (3)?,POR QUE (4)?,POR QUE (5)?,Pode gerar uma LPP ?,"Equipe de análise:\n",Gatilho,FOTO
+,,,,,,,,,,,,,,,,,,,,,,,,,
+MECÂNICO,2025-03-11,f7e94e7e,14:10:02,15:10:00,Luciano,,TURNO 1,PH,tc 601A,desalinhamento da correia,Alinhamento da correia de transporte,Demetrio,,14:30:00,verificar o funcionamento,,,,,,,,,,2025-03-11 16:19:23,
+ELÉTRICO,2025-03-11,a73751c6,17:41:00,,Henrique,,TURNO 1,PH,TC-609,Falha no sensor de movimento de rotação,,,,,,,SIM,teste1,teste2,,,,,,2025-05-07 05:08:29,
+MECÂNICO,2025-03-11,3998b5a0,19:15:00,19:40:00,Henrique,,TURNO 1,PH,TC-609,Falha no motor 10cv/15cv,Troca do motor,Demetrio,,19:15:00,,,,,,,,,,,
+ELÉTRICO,2025-03-12,71d2b9d0,03:30:00,04:20:00,Henrique,,TURNO 2,PH,TC-609,quebra de eixo,,,,,,,SIM,teste1,teste2,,,,,,2025-05-07 05:08:29,
+MECÂNICO,2025-03-12,b055998a,05:00:00,05:20:00,Henrique,,TURNO 2,PH,tc 601A,Rolamento com folga,Troca do rolamento,Demetrio,,05:00:00,,,,,,,,,,,
+AUTOMAÇÃO,2025-03-12,25633b49,08:30:00,09:45:00,Luciano,,TURNO 1,PH,TC-609,sensor de presença,Troca do sensor,Demetrio,,08:30:00,,,,,,,,,,,
+MECÂNICO,2025-03-12,504892c9,10:30:00,11:30:00,Luciano,,TURNO 1,PH,tc 601A,correia raspando,Ajuste da correia,Demetrio,,10:30:00,,,,,,,,,,,
+ELÉTRICO,2025-03-12,1c801e0a,14:00:00,15:15:00,Henrique,,TURNO 1,PH,TC-609,Falha na ventilação,Limpeza na ventilação,Demetrio,,14:00:00,,,,,,,,,,,
+AUTOMAÇÃO,2025-03-13,91a6d7f8,07:00:00,07:30:00,Luciano,,TURNO 2,PH,TC-609,Problema na lógica,Revisão da lógica,Demetrio,,07:00:00,,,,,,,,,,,
+MECÂNICO,2025-03-13,f4a01c43,11:45:00,12:15:00,Henrique,,TURNO 1,PH,tc 601A,desalinhamento da correia,Alinhamento da correia,Demetrio,,11:45:00,,,,,,,,,,,
+ELÉTRICO,2025-03-13,63b0a2c1,16:30:00,17:30:00,Luciano,,TURNO 1,PH,TC-609,Motor com cheiro de queimado,Troca do motor,Demetrio,,16:30:00,,,,,,,,,,,
+AUTOMAÇÃO,2025-03-14,a2e1d7b3,01:00:00,02:15:00,Henrique,,TURNO 3,PH,TC-609,Falha no inversor,Troca do inversor,Demetrio,,01:00:00,,,,,,,,,,,
+MECÂNICO,2025-03-14,5f187d9c,04:45:00,05:30:00,Luciano,,TURNO 3,PH,tc 601A,Quebra de eixo,Troca do eixo,Demetrio,,04:45:00,,,,,,,,,,,
+ELÉTRICO,2025-03-14,e6c5a0f2,08:00:00,08:45:00,Henrique,,TURNO 2,PH,TC-609,Curto circuito,Isolamento do fio,Demetrio,,08:00:00,,,,,,,,,,,
+AUTOMAÇÃO,2025-03-14,c9b3e1a8,13:30:00,14:00:00,Luciano,,TURNO 1,PH,TC-609,Configuração errada,Reconfiguração do sistema,Demetrio,,13:30:00,,,,,,,,,,,
+MECÂNICO,2025-03-14,2a4f6e8d,18:00:00,19:00:00,Henrique,,TURNO 1,PH,tc 601A,Ajuste de tensão,Ajuste na tensão da correia,Demetrio,,18:00:00,,,,,,,,,,,
+ELÉTRICO,2025-03-15,3d0b2c4f,22:00:00,23:30:00,Luciano,,TURNO 3,PH,TC-609,Troca de contatores,Substituição de contatores,Demetrio,,22:00:00,,,,,,,,,,,
+MECÂNICO,2025-03-15,8e1a7b5d,01:30:00,02:30:00,Henrique,,TURNO 3,PH,tc 601A,Quebra de flange,Troca do flange,Demetrio,,01:30:00,,,,,,,,,,,
+ELÉTRICO,2025-03-15,f0c9d4e1,06:00:00,07:00:00,Luciano,,TURNO 2,PH,TC-609,Fusível queimado,Troca do fusível,Demetrio,,06:00:00,,,,,,,,,,,
+MECÂNICO,2025-03-16,4b6a9c3d,10:30:00,11:30:00,Henrique,,TURNO 1,PH,tc 601A,Vazamento de óleo,Troca de vedação,Demetrio,,10:30:00,,,,,,,,,,,
+ELÉTRICO,2025-03-16,7e3d1b9c,15:00:00,16:00:00,Luciano,,TURNO 1,PH,TC-609,Problema na fiação,Reparo na fiação,Demetrio,,15:00:00,,,,,,,,,,,
+MECÂNICO,2025-03-16,c1b9e3d7,19:30:00,20:30:00,Henrique,,TURNO 1,PH,tc 601A,Rolamento com ruído,Troca do rolamento,Demetrio,,19:30:00,,,,,,,,,,,
+AUTOMAÇÃO,2025-03-17,a0f9b8c7,00:00:00,01:00:00,Luciano,,TURNO 3,PH,TC-609,Falha de comunicação,Reset de comunicação,Demetrio,,00:00:00,,,,,,,,,,,
+MECÂNICO,2025-03-17,3d7e4b9c,04:30:00,05:30:00,Henrique,,TURNO 3,PH,tc 601A,Correia gasta,Troca da correia,Demetrio,,04:30:00,,,,,,,,,,,
+ELÉTRICO,2025-03-17,8f2a1c0d,09:00:00,10:00:00,Luciano,,TURNO 2,PH,TC-609,Disjuntor desarmado,Rearme do disjuntor,Demetrio,,09:00:00,,,,,,,,,,,
+MECÂNICO,2025-03-17,e4b9c1a0,13:30:00,14:30:00,Henrique,,TURNO 1,PH,tc 601A,Furo na tubulação,Reparo na tubulação,Demetrio,,13:30:00,,,,,,,,,,,
+AUTOMAÇÃO,2025-03-17,5c1d9f8a,18:00:00,19:00:00,Luciano,,TURNO 1,PH,TC-609,Erro de programação,Ajuste na programação,Demetrio,,18:00:00,,,,,,,,,,,
+ELÉTRICO,2025-03-18,6b8a2c4e,22:30:00,23:30:00,Henrique,,TURNO 3,PH,TC-609,Quebra de borne,Troca de borne,Demetrio,,22:30:00,,,,,,,,,,,
+MECÂNICO,2025-03-18,1a7c5b9f,03:00:00,04:00:00,Luciano,,TURNO 3,PH,tc 601A,Vibração excessiva,Balanceamento do eixo,Demetrio,,03:00:00,,,,,,,,,,,
+ELÉTRICO,2025-10-04,337b9a32,16:34:00,17:00:00,Jeorge,,TURNO 2 TARDE,PH,tc 601A,queima eletrica da ventoinha do redutor,"limpeza na tampa frontal O travamento impede a rotação do sistema de ventilação, cessando a exaustão e exigindo atenção imediata para evitar queima elétrica ao tentar forçar a partida.","ELCID , DAVISON",FINALIZADA ,,,,,,,,,,,,,\n
+AUTOMAÇÃO,2025-10-03,6f8e994c,11:56:12,14:56:19,Marcos,,TURNO 1 MANHÃ,PERFUME,medidor de vazao da linha 05,medidor de vazao da linha 05 sem  esta medindo,"Diagnóstico: Foi confirmado, utilizando o software da Endress+Hauser, que o medidor apresenta falhas internas e sujeira no tubo interno.\n\nAção Necessária: O plano é agendar uma janela de produção para a retirada e manutenção/substituição do equipamento.","ELCID , MARCOS , DANILO , JEFFERSON , DAVISON",PENDENTE,,,,,,,,,,,,,\n
+MECÂNICO,2025-10-03,25a9ba4f,18:00:00,18:20:00,Jeorge,,TURNO 2 TARDE,EMBALAGEM,Empacot 2,Caçamba com passagem de pó,"Foi verificado que a vedacao mecânica está com defeito , foi retirado para usinar e desativado a caçamba 1 de funcionamento.",DANILO,,,,,,,,,,,,,,\n`; 
+
+        // Variável para rastrear o estado dos dados
+        const dataStatusEl = document.getElementById('data-status');
+
+        // Função para carregar os dados automaticamente (REMOVIDA E SUBSTITUÍDA POR DADOS ESTÁTICOS)
+        // Função para converter HH:MM:SS para minutos desde o início do dia
+        function timeToMinutes(timeStr) {
+            if (!timeStr) return 0;
+            try {
+                const parts = timeStr.trim().split(':');
+                if (parts.length < 2) return 0;
+                
+                const hours = parseInt(parts[0]) || 0;
+                const minutes = parseInt(parts[1]) || 0;
+                const seconds = parseInt(parts[2]) || 0;
+
+                return hours * 60 + minutes + (seconds / 60);
+            } catch (e) {
+                return 0;
+            }
+        }
+
+        // Função para calcular o downtime em minutos
+        function calculateDowntime(startTime, endTime) {
+            if (!startTime || !endTime) return 0;
+
+            const startMins = timeToMinutes(startTime);
+            const endMins = timeToMinutes(endTime);
+
+            if (startMins === 0 || endMins === 0) return 0;
+
+            let downtime = endMins - startMins;
+            if (downtime < 0) {
+                // Assume que a quebra começou e terminou em dias diferentes (cruzando a meia-noite)
+                downtime += (24 * 60); 
+            }
+
+            return Math.round(downtime);
+        }
+
+        // Função para normalizar cabeçalhos: remove espaços extras, dois pontos e quebras de linha
+        function normalizeHeader(header) {
+             return header
+                .trim()
+                .replace(/:\s*$/, '') // Remove trailing colon and spaces (ex: "Setor: ")
+                .replace(/\s+/g, ' ') 
+                .replace(/\n/g, ' '); 
+        }
+
+        // Função para parsear o CSV string de forma robusta
+        function parseCSV(csvText) {
+            let lines = csvText.trim().split('\n').filter(line => line.trim() !== '');
+
+            if (lines.length < 2) {
+                console.error("CSV tem menos de duas linhas (cabeçalho + dados).");
+                return [];
+            }
+
+            const headerLine = lines[0];
+            // Remove as aspas duplas, depois divide por vírgula
+            const rawHeaders = headerLine.split(',').map(h => h.trim().replace(/"/g, ''));
+            const headers = rawHeaders.map(normalizeHeader);
+            
+            const records = [];
+            const dataLines = lines.slice(1);
+            // Regex para lidar com campos entre aspas que contém vírgulas (necessário para CSV de Sheets)
+            const csvFieldRegex = /(?:"((?:[^"]|"")*)"|([^,]*))(?:,|$)/g;
+
+            dataLines.forEach(line => {
+                // Linhas vazias ou apenas com vírgulas são ignoradas
+                if (line.trim().split(',').every(cell => cell.trim() === '')) {
+                    return; 
+                }
+
+                let values = [];
+                let match;
+                csvFieldRegex.lastIndex = 0; 
+                
+                while ((match = csvFieldRegex.exec(line)) !== null) {
+                    let value = match[1] !== undefined ? match[1].replace(/""/g, '"') : match[2];
+                    values.push((value || '').trim());
+                    
+                    if (match.index === line.length) {
+                        break; 
+                    }
+                }
+                
+                // Filtro de validação: A linha só é válida se tiver 'NATUREZA DA QUEBRA' preenchida (primeiro campo)
+                const natureValue = values[0] ? values[0].trim() : '';
+                if (natureValue === '') {
+                    return; 
+                }
+
+                let record = {};
+                for (let j = 0; j < headers.length; j++) {
+                    const key = headers[j];
+                    const rawValue = values[j] ? values[j].trim() : ''; 
+                    record[key] = rawValue;
+                }
+                records.push(record);
+            });
+
+            console.log("Total de registros válidos processados (AKF01):", records.length);
+            return records;
+        }
+
+        // Função para analisar o CSV e agregar os dados necessários
+        function processAndAggregateData(csvText) {
+            const records = parseCSV(csvText);
+            const aggregates = {
+                natureza: {},
+                setorDowntime: {},
+                mantenedorCounts: {},
+                tendencia: {},
+                turnoCounts: {},
+                equipamentoDowntime: {},
+                allDowntimes: []
+            };
+            
+            const natureColors = {
+                'ELÉTRICO': '#ef4444',
+                'MECÂNICO': '#1e40af',
+                'AUTOMAÇÃO': '#fbbf24',
+                'OUTROS': '#059669'
+            };
+
+            const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+            
+            const monthlyTrends = {}; 
+
+            // Mapeamento dos campos baseado nos cabeçalhos exatos (após normalização)
+            // Ajustado para os nomes dos cabeçalhos do seu CSV
+            const FIELD_MAP = {
+                NATUREZA: 'NATUREZA DA QUEBRA',
+                DATA_INICIO: 'Data Inicio',
+                HORA_INICIO: 'Hora Inicio',
+                HORA_FIM: 'Hora fim',
+                SETOR: 'Setor',
+                EQUIPAMENTO: 'Equipamento',
+                MANTENEDOR: 'MANTEDEDOR',
+                TURNO: 'TURNO',
+            };
+
+            records.forEach(record => {
+                const nature = (record[FIELD_MAP.NATUREZA] || 'OUTROS').toUpperCase().trim();
+                const setor = (record[FIELD_MAP.SETOR] || 'N/A').toUpperCase().trim();
+                const equipamento = (record[FIELD_MAP.EQUIPAMENTO] || 'N/A').toUpperCase().trim();
+                
+                // Normaliza o TURNO para garantir agregação correta (Ex: 'TURNO 1' vs 'TURNO 1 MANHÃ')
+                const turno = (record[FIELD_MAP.TURNO] || 'N/A').toUpperCase().trim().replace(/ MANHÃ| TARDE| NOITE/g, '').trim();
+                
+                // O campo MANTEDEDOR pode ter múltiplos nomes separados por vírgula
+                const mantenedorList = record[FIELD_MAP.MANTENEDOR] ? record[FIELD_MAP.MANTENEDOR].split(/[,;]/).map(m => m.trim()).filter(m => m) : [];
+                
+                const downtime = calculateDowntime(record[FIELD_MAP.HORA_INICIO], record[FIELD_MAP.HORA_FIM]);
+
+                if (downtime > 0) {
+                    aggregates.allDowntimes.push(downtime);
+                }
+
+                // Agregações de KPI e Gráficos
+                aggregates.natureza[nature] = (aggregates.natureza[nature] || 0) + 1;
+                aggregates.setorDowntime[setor] = (aggregates.setorDowntime[setor] || 0) + downtime;
+                
+                mantenedorList.forEach(mantenedor => {
+                    mantenedor = mantenedor.toUpperCase().trim();
+                    if (mantenedor && mantenedor !== 'N/A' && mantenedor !== 'FINALIZADA' && mantenedor !== 'PENDENTE') { // Filtra valores ruins no campo
+                        aggregates.mantenedorCounts[mantenedor] = (aggregates.mantenedorCounts[mantenedor] || 0) + 1;
+                    }
+                });
+
+                // Lógica de parsing de data aprimorada para suportar DD/MM/YYYY e YYYY-MM-DD
+                const dataInicio = record[FIELD_MAP.DATA_INICIO];
+                let year, month;
+
+                if (dataInicio) {
+                    if (dataInicio.includes('-')) {
+                        // Formato YYYY-MM-DD (Padrão ISO)
+                        [year, month] = dataInicio.split('-');
+                    } else if (dataInicio.includes('/')) {
+                        // Formato DD/MM/YYYY (Padrão Brasileiro comum)
+                        const parts = dataInicio.split('/');
+                        if (parts.length === 3) {
+                            // Estamos interessados apenas no Mês (MM) e no Ano (YYYY)
+                            [ , month, year] = parts; 
+                        }
+                    }
+
+                    const monthKey = parseInt(month);
+                    if (!isNaN(monthKey) && year) {
+                        const trendKey = `${monthKey}-${year}`; // Chave: Mês-Ano
+                        monthlyTrends[trendKey] = (monthlyTrends[trendKey] || 0) + 1;
+                    }
+                }
+
+                aggregates.turnoCounts[turno] = (aggregates.turnoCounts[turno] || 0) + 1;
+                aggregates.equipamentoDowntime[equipamento] = (aggregates.equipamentoDowntime[equipamento] || 0) + downtime;
+            });
+
+
+            // --- Formatação da Tendência Mensal ---
+            
+            // 1. Coleta todas as chaves (Mês-Ano) e ordena cronologicamente
+            const sortedTrendKeys = Object.keys(monthlyTrends).sort((a, b) => {
+                const [monthA, yearA] = a.split('-').map(Number);
+                const [monthB, yearB] = b.split('-').map(Number);
+
+                if (yearA !== yearB) return yearA - yearB;
+                return monthA - monthB;
+            });
+
+            // 2. Mapeia para labels formatados e dados de contagem
+            const trendLabels = sortedTrendKeys.map(key => {
+                const [monthNum, yearNum] = key.split('-');
+                return `${monthNames[monthNum - 1]}/${yearNum % 100}`; // Ex: Jan/25
+            });
+            const trendCounts = sortedTrendKeys.map(key => monthlyTrends[key]);
+
+
+            // --- Formatação para Chart.js e KPI ---
+            
+            const naturezaSorted = Object.entries(aggregates.natureza).sort(([, a], [, b]) => b - a);
+            const setoresSorted = Object.entries(aggregates.setorDowntime)
+                .filter(([label]) => label !== 'N/A' && label.trim() !== '')
+                .sort(([, a], [, b]) => b - a).slice(0, 5);
+
+            const mantenedorSorted = Object.entries(aggregates.mantenedorCounts)
+                .filter(([label]) => label !== 'N/A' && label.trim() !== '')
+                .sort(([, a], [, b]) => b - a).slice(0, 5);
+            
+            const turnoLabels = Object.keys(aggregates.turnoCounts).filter(label => label !== 'N/A').sort();
+            const turnoCounts = turnoLabels.map(label => aggregates.turnoCounts[label]);
+
+            const equipamentosSorted = Object.entries(aggregates.equipamentoDowntime)
+                .filter(([label]) => label !== 'N/A' && label.trim() !== '')
+                .sort(([, a], [, b]) => b - a).slice(0, 5);
+            
+            
+            const realData = {
+                totalOcorrencias: records.length,
+                totalDowntime: aggregates.allDowntimes.reduce((sum, current) => sum + current, 0),
+
+                calculateMTTR: function() {
+                    // Contamos apenas ocorrências com downtime > 0 para o MTTR
+                    const ocorrenciasComDowntime = aggregates.allDowntimes.length;
+                    if (ocorrenciasComDowntime > 0) {
+                        return (this.totalDowntime / ocorrenciasComDowntime).toFixed(2);
+                    }
+                    return '0.00';
+                },
+
+                naturezaData: {
+                    labels: naturezaSorted.map(([label]) => label),
+                    counts: naturezaSorted.map(([, count]) => count),
+                    colors: naturezaSorted.map(([label]) => natureColors[label] || natureColors['OUTROS'])
+                },
+                setoresData: {
+                    labels: setoresSorted.map(([label]) => label),
+                    downtime: setoresSorted.map(([, downtime]) => downtime),
+                    color: '#1e40af' 
+                },
+                technicianData: {
+                    labels: mantenedorSorted.map(([label]) => label),
+                    counts: mantenedorSorted.map(([, count]) => count),
+                    color: '#fbbf24'
+                },
+                tendenciaData: {
+                    labels: trendLabels, 
+                    counts: trendCounts, 
+                    color: '#059669'
+                },
+                shiftData: {
+                    labels: turnoLabels,
+                    counts: turnoCounts,
+                    color: '#8b5cf6' 
+                },
+                equipamentoData: {
+                    labels: equipamentosSorted.map(([label]) => label),
+                    downtime: equipamentosSorted.map(([, downtime]) => downtime),
+                    color: '#ef4444' 
+                }
+            };
+            
+            return realData;
+        }
+        
+        // Função para renderizar os gráficos e KPIs com os dados processados
+        function renderCharts(data) {
+            
+            // Verifica se os dados são válidos
+            if (!data || data.totalOcorrencias === 0) {
+                dataStatusEl.textContent = 'AVISO: Dados carregados, mas não foram encontrados registros válidos para a aba AKF01.';
+                dataStatusEl.classList.replace('text-green-600', 'text-yellow-700');
+                return; 
+            }
+
+            // Cálculo MTTR
+            const mttr = data.calculateMTTR();
+            const topEquipamento = data.equipamentoData.labels.length > 0 ? data.equipamentoData.labels[0] : 'N/A';
+
+            // Preencher os elementos KPI no HTML
+            document.getElementById('kpi-ocorrencias').textContent = data.totalOcorrencias.toLocaleString('pt-BR');
+            document.getElementById('kpi-downtime').textContent = data.totalDowntime.toLocaleString('pt-BR');
+            document.getElementById('kpi-mttr').textContent = mttr;
+            document.getElementById('kpi-top-equipamento').textContent = topEquipamento;
+
+            // Configurações de tema CLARO para Chart.js
+            const lightChartConfig = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: '#374151' }
+                    },
+                    title: { display: false }
+                },
+                scales: {
+                    y: {
+                        grid: { color: '#e5e7eb' },
+                        ticks: { color: '#4b5563' }
+                    },
+                    x: {
+                        grid: { color: '#e5e7eb' },
+                        ticks: { color: '#4b5563' }
+                    }
+                }
+            };
+            
+            // 1. Gráfico de Distribuição de Quebras por Natureza (Donut Chart)
+            const ctxNatureza = document.getElementById('chartNatureza').getContext('2d');
+            new Chart(ctxNatureza, {
+                type: 'doughnut',
+                data: {
+                    labels: data.naturezaData.labels,
+                    datasets: [{
+                        data: data.naturezaData.counts,
+                        backgroundColor: data.naturezaData.colors,
+                        borderColor: '#ffffff',
+                        borderWidth: 3,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: { color: lightChartConfig.plugins.legend.labels.color }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const value = context.parsed;
+                                    const percentage = ((value / total) * 100).toFixed(1) + '%';
+                                    return `${context.label}: ${value} ocorrências (${percentage})`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 2. Gráfico de Top 5 Setores por Downtime (Horizontal Bar Chart)
+            const ctxSetores = document.getElementById('chartSetores').getContext('2d');
+            new Chart(ctxSetores, {
+                type: 'bar',
+                data: {
+                    labels: data.setoresData.labels,
+                    datasets: [{
+                        label: 'Tempo de Parada (Minutos)',
+                        data: data.setoresData.downtime,
+                        backgroundColor: data.setoresData.color,
+                        borderRadius: 4,
+                    }]
+                },
+                options: {
+                    ...lightChartConfig,
+                    indexAxis: 'y',
+                    scales: {
+                        x: {
+                            ...lightChartConfig.scales.x,
+                            title: { display: true, text: 'Minutos', color: '#4b5563' }
+                        }
+                    },
+                    plugins: { ...lightChartConfig.plugins, legend: { display: false } }
+                }
+            });
+
+            // 3. Gráfico de Top 5 Mantenedores por Ocorrências (Horizontal Bar Chart)
+            const ctxTecnicos = document.getElementById('chartTecnicos').getContext('2d');
+            new Chart(ctxTecnicos, {
+                type: 'bar',
+                data: {
+                    labels: data.technicianData.labels,
+                    datasets: [{
+                        label: 'Ocorrências Atendidas',
+                        data: data.technicianData.counts,
+                        backgroundColor: data.technicianData.color,
+                        borderRadius: 4,
+                    }]
+                },
+                options: {
+                    ...lightChartConfig,
+                    indexAxis: 'y',
+                    scales: {
+                        x: {
+                            ...lightChartConfig.scales.x,
+                            title: { display: true, text: 'Contagem', color: '#4b5563' }
+                        }
+                    },
+                    plugins: { ...lightChartConfig.plugins, legend: { display: false } }
+                }
+            });
+
+            // 4. Gráfico de Tendência Mensal de Falhas (Line Chart)
+            const ctxTendencia = document.getElementById('chartTendencia').getContext('2d');
+            new Chart(ctxTendencia, {
+                type: 'line',
+                data: {
+                    labels: data.tendenciaData.labels,
+                    datasets: [{
+                        label: 'Número de Ocorrências',
+                        data: data.tendenciaData.counts,
+                        borderColor: data.tendenciaData.color,
+                        backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 5,
+                        pointBackgroundColor: data.tendenciaData.color,
+                    }]
+                },
+                options: {
+                    ...lightChartConfig,
+                    scales: {
+                        y: {
+                            ...lightChartConfig.scales.y,
+                            title: { display: true, text: 'Contagem de Falhas', color: '#4b5563' },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            // 5. Gráfico de Ocorrências por Turno (Vertical Bar Chart)
+            const ctxTurno = document.getElementById('chartTurno').getContext('2d');
+            new Chart(ctxTurno, {
+                type: 'bar',
+                data: {
+                    labels: data.shiftData.labels,
+                    datasets: [{
+                        label: 'Total de Ocorrências',
+                        data: data.shiftData.counts,
+                        backgroundColor: data.shiftData.color,
+                        borderRadius: 4,
+                    }]
+                },
+                options: {
+                    ...lightChartConfig,
+                    scales: {
+                        y: {
+                            ...lightChartConfig.scales.y,
+                            title: { display: true, text: 'Contagem', color: '#4b5563' },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            // 6. Gráfico de Top 5 Equipamentos por Downtime (Horizontal Bar Chart)
+            const ctxEquipamentos = document.getElementById('chartEquipamentos').getContext('2d');
+            new Chart(ctxEquipamentos, {
+                type: 'bar',
+                data: {
+                    labels: data.equipamentoData.labels,
+                    datasets: [{
+                        label: 'Downtime (Minutos)',
+                        data: data.equipamentoData.downtime,
+                        backgroundColor: data.equipamentoData.color,
+                        borderRadius: 4,
+                    }]
+                },
+                options: {
+                    ...lightChartConfig,
+                    indexAxis: 'y',
+                    scales: {
+                        x: {
+                            ...lightChartConfig.scales.x,
+                            title: { display: true, text: 'Minutos de Parada', color: '#4b5563' }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Inicia a renderização do painel carregando os dados
+        function initDashboard() {
+            // Não precisa mais de fetch! Usamos a variável estática rawCSVData.
+            const data = processAndAggregateData(rawCSVData);
+            renderCharts(data);
+        }
+
+        window.onload = initDashboard;
+
+    </script>
+</body>
+</html>
