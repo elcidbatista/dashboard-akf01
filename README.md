@@ -92,7 +92,7 @@
             <p class="text-xs text-red-500 mt-2">⚠️ O método de URL pode falhar devido a restrições de segurança (CORS) em alguns navegadores. **O método de colar é sempre o mais garantido.**</p>
         </section>
 
-        <!-- Seção de Cartões KPI -->
+        <!-- Seção de Cartões KPI - RESTAURADA A APARÊNCIA ANTERIOR (SHADOW-2XL E BORDER-B-8) -->
         <section id="kpi-cards" class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
             <!-- Cartão 1: Quantidade de Natureza da Quebra -->
             <div class="bg-card-bg p-6 rounded-xl shadow-2xl border-b-8 border-accent-blue transition duration-300 hover:shadow-xl hover:scale-[1.03]">
