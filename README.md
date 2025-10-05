@@ -116,7 +116,10 @@
             <div class="bg-card-bg p-6 rounded-xl shadow-2xl border-b-8 border-yellow-500 transition duration-300 hover:shadow-xl hover:scale-[1.03]">
                 <p class="text-sm font-semibold uppercase text-gray-500">Equipamento Crítico</p>
                 <p id="kpi-top-equipamento" class="text-4xl font-bold mt-2 text-dark-text">N/A</p>
-                <p class="text-xs text-yellow-600 mt-1">Maior Downtime (Calculado)</p>
+                <p id="kpi-top-ocorrencia" class="text-sm mt-1 text-gray-700 italic truncate" title="Nenhuma descrição de falha.">
+                    Nenhuma descrição de falha.
+                </p>
+                <p class="text-xs text-yellow-600 mt-2">Maior Downtime e sua última falha registrada.</p>
             </div>
         </section>
 
@@ -298,6 +301,7 @@
                 tendencia: {},
                 turnoCounts: {},
                 equipamentoDowntime: {},
+                equipamentoOcorrencia: {}, // NOVO: Para armazenar a descrição da ocorrência
                 allDowntimes: []
             };
             
@@ -321,12 +325,14 @@
                 EQUIPAMENTO: 'Equipamento',
                 MANTENEDOR: 'MANTEDEDOR',
                 TURNO: 'TURNO',
+                OCORRENCIA: 'DESCRIÇÃO DA OCORRÊNCIA' // NOVO CAMPO
             };
 
             records.forEach(record => {
                 const nature = (record[FIELD_MAP.NATUREZA] || 'OUTROS').toUpperCase().trim();
                 const setor = (record[FIELD_MAP.SETOR] || 'N/A').toUpperCase().trim();
                 const equipamento = (record[FIELD_MAP.EQUIPAMENTO] || 'N/A').toUpperCase().trim();
+                const ocorrencia = (record[FIELD_MAP.OCORRENCIA] || 'Sem descrição').trim(); // NOVO CAMPO
                 
                 // Normaliza o TURNO (ex: 'TURNO 1' vs 'TURNO 1 MANHÃ')
                 const turno = (record[FIELD_MAP.TURNO] || 'N/A').toUpperCase().trim().replace(/ MANHÃ| TARDE| NOITE/g, '').trim();
@@ -373,7 +379,24 @@
                 }
 
                 aggregates.turnoCounts[turno] = (aggregates.turnoCounts[turno] || 0) + 1;
-                aggregates.equipamentoDowntime[equipamento] = (aggregates.equipamentoDowntime[equipamento] || 0) + downtime;
+                
+                // Agregação de Downtime e Ocorrência Crítica
+                if (equipamento !== 'N/A' && equipamento !== '') {
+                    const currentDowntime = aggregates.equipamentoDowntime[equipamento] || 0;
+                    aggregates.equipamentoDowntime[equipamento] = currentDowntime + downtime;
+
+                    // Armazena a ocorrência mais relevante (a que teve maior downtime na iteração atual)
+                    // Para simplificar, pegaremos o último registro com maior downtime se não tiver um critério claro.
+                    // Para o TOP 1, vamos armazenar temporariamente o último registro.
+                    const existingRecord = aggregates.equipamentoOcorrencia[equipamento] || { downtime: 0, ocorrencia: 'Sem descrição' };
+                    
+                    if (downtime > existingRecord.downtime) {
+                        aggregates.equipamentoOcorrencia[equipamento] = { downtime: downtime, ocorrencia: ocorrencia };
+                    } else if (aggregates.equipamentoDowntime[equipamento] === currentDowntime + downtime && existingRecord.ocorrencia === 'Sem descrição') {
+                         // Se o downtime for o mesmo, pegue o último registro com descrição
+                         aggregates.equipamentoOcorrencia[equipamento] = { downtime: downtime, ocorrencia: ocorrencia };
+                    }
+                }
             });
 
 
@@ -407,7 +430,30 @@
                 .filter(([label]) => label !== 'N/A' && label.trim() !== '')
                 .sort(([, a], [, b]) => b - a).slice(0, 5);
             
+            // NOVO: Encontra a ocorrência crítica do Top 1 Equipamento
+            const topEquipamentoLabel = equipamentosSorted.length > 0 ? equipamentosSorted[0][0] : null;
+            let topEquipamentoOcorrencia = 'Nenhuma descrição registrada.';
             
+            if (topEquipamentoLabel) {
+                // Percorre todos os registros do top equipamento e pega a ocorrência do registro com maior downtime INDIVIDUAL
+                let maxSingleDowntime = 0;
+                let criticalOcorrencia = 'Sem descrição';
+
+                records.filter(r => (r[FIELD_MAP.EQUIPAMENTO] || 'N/A').toUpperCase().trim() === topEquipamentoLabel)
+                       .forEach(r => {
+                           const downtime = calculateDowntime(r[FIELD_MAP.HORA_INICIO], r[FIELD_MAP.HORA_FIM]);
+                           if (downtime > maxSingleDowntime) {
+                               maxSingleDowntime = downtime;
+                               criticalOcorrencia = (r[FIELD_MAP.OCORRENCIA] || 'Sem descrição').trim();
+                           }
+                       });
+                
+                if (criticalOcorrencia !== 'Sem descrição') {
+                    topEquipamentoOcorrencia = criticalOcorrencia;
+                }
+            }
+
+
             const realData = {
                 totalOcorrencias: records.length,
                 totalDowntime: aggregates.allDowntimes.reduce((sum, current) => sum + current, 0),
@@ -419,6 +465,8 @@
                     }
                     return '0.00';
                 },
+
+                topEquipamentoOcorrencia: topEquipamentoOcorrencia, // NOVO DADO PARA KPI
 
                 naturezaData: {
                     labels: naturezaSorted.map(([label]) => label),
@@ -483,6 +531,8 @@
                 document.getElementById('kpi-downtime').textContent = '0';
                 document.getElementById('kpi-mttr').textContent = '0.00';
                 document.getElementById('kpi-top-equipamento').textContent = 'N/A';
+                document.getElementById('kpi-top-ocorrencia').textContent = 'Nenhuma descrição de falha.';
+                document.getElementById('kpi-top-ocorrencia').title = 'Nenhuma descrição de falha.';
                 return; 
             }
 
@@ -505,7 +555,12 @@
             document.getElementById('kpi-ocorrencias').textContent = data.totalOcorrencias.toLocaleString('pt-BR');
             document.getElementById('kpi-downtime').textContent = data.totalDowntime.toLocaleString('pt-BR');
             document.getElementById('kpi-mttr').textContent = mttr;
+            
+            // Atualização dos dados do Equipamento Crítico (Top 1)
             document.getElementById('kpi-top-equipamento').textContent = topEquipamento;
+            document.getElementById('kpi-top-ocorrencia').textContent = data.topEquipamentoOcorrencia;
+            document.getElementById('kpi-top-ocorrencia').title = data.topEquipamentoOcorrencia;
+
 
             // Configurações de tema CLARO para Chart.js
             const lightChartConfig = {
@@ -849,4 +904,3 @@ ELÉTRICO,2025-10-04,337b9a32,16:34:00,17:00:00,Jeorge,,TURNO 2 TARDE,PH,tc 601A
     </script>
 </body>
 </html>
-
