@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard AKF01 - Dinâmico</title>
     <!-- Carregando Tailwind CSS para Estilização -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.js"></script>
     <!-- Carregando Chart.js para Visualização de Dados -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
     <!-- Configuração de fontes e cores para Tailwind -->
@@ -301,7 +301,7 @@
                 tendencia: {},
                 turnoCounts: {},
                 equipamentoDowntime: {},
-                equipamentoOcorrencia: {}, // NOVO: Para armazenar a descrição da ocorrência
+                equipamentoOcorrencia: {}, 
                 allDowntimes: []
             };
             
@@ -325,14 +325,14 @@
                 EQUIPAMENTO: 'Equipamento',
                 MANTENEDOR: 'MANTEDEDOR',
                 TURNO: 'TURNO',
-                OCORRENCIA: 'DESCRIÇÃO DA OCORRÊNCIA' // NOVO CAMPO
+                OCORRENCIA: 'DESCRIÇÃO DA OCORRÊNCIA'
             };
 
             records.forEach(record => {
                 const nature = (record[FIELD_MAP.NATUREZA] || 'OUTROS').toUpperCase().trim();
                 const setor = (record[FIELD_MAP.SETOR] || 'N/A').toUpperCase().trim();
                 const equipamento = (record[FIELD_MAP.EQUIPAMENTO] || 'N/A').toUpperCase().trim();
-                const ocorrencia = (record[FIELD_MAP.OCORRENCIA] || 'Sem descrição').trim(); // NOVO CAMPO
+                const ocorrencia = (record[FIELD_MAP.OCORRENCIA] || 'Sem descrição').trim();
                 
                 // Normaliza o TURNO (ex: 'TURNO 1' vs 'TURNO 1 MANHÃ')
                 const turno = (record[FIELD_MAP.TURNO] || 'N/A').toUpperCase().trim().replace(/ MANHÃ| TARDE| NOITE/g, '').trim();
@@ -385,15 +385,11 @@
                     const currentDowntime = aggregates.equipamentoDowntime[equipamento] || 0;
                     aggregates.equipamentoDowntime[equipamento] = currentDowntime + downtime;
 
-                    // Armazena a ocorrência mais relevante (a que teve maior downtime na iteração atual)
-                    // Para simplificar, pegaremos o último registro com maior downtime se não tiver um critério claro.
-                    // Para o TOP 1, vamos armazenar temporariamente o último registro.
                     const existingRecord = aggregates.equipamentoOcorrencia[equipamento] || { downtime: 0, ocorrencia: 'Sem descrição' };
                     
                     if (downtime > existingRecord.downtime) {
                         aggregates.equipamentoOcorrencia[equipamento] = { downtime: downtime, ocorrencia: ocorrencia };
                     } else if (aggregates.equipamentoDowntime[equipamento] === currentDowntime + downtime && existingRecord.ocorrencia === 'Sem descrição') {
-                         // Se o downtime for o mesmo, pegue o último registro com descrição
                          aggregates.equipamentoOcorrencia[equipamento] = { downtime: downtime, ocorrencia: ocorrencia };
                     }
                 }
@@ -423,14 +419,16 @@
                 .filter(([label]) => label !== 'N/A' && label.trim() !== '')
                 .sort(([, a], [, b]) => b - a).slice(0, 5);
             
-            const turnoLabels = Object.keys(aggregates.turnoCounts).filter(label => label !== 'N/A').sort();
-            const turnoCounts = turnoLabels.map(label => aggregates.turnoCounts[label]);
+            // LÓGICA ATUALIZADA: Focar apenas nos Turnos 1, 2 e 3 na ordem correta
+            const allowedTurnos = ['TURNO 1', 'TURNO 2', 'TURNO 3'];
+            const turnoLabels = allowedTurnos.filter(label => aggregates.turnoCounts[label]); 
+            const turnoCounts = turnoLabels.map(label => aggregates.turnoCounts[label] || 0);
 
             const equipamentosSorted = Object.entries(aggregates.equipamentoDowntime)
                 .filter(([label]) => label !== 'N/A' && label.trim() !== '')
                 .sort(([, a], [, b]) => b - a).slice(0, 5);
             
-            // NOVO: Encontra a ocorrência crítica do Top 1 Equipamento
+            // Encontra a ocorrência crítica do Top 1 Equipamento
             const topEquipamentoLabel = equipamentosSorted.length > 0 ? equipamentosSorted[0][0] : null;
             let topEquipamentoOcorrencia = 'Nenhuma descrição registrada.';
             
@@ -466,7 +464,7 @@
                     return '0.00';
                 },
 
-                topEquipamentoOcorrencia: topEquipamentoOcorrencia, // NOVO DADO PARA KPI
+                topEquipamentoOcorrencia: topEquipamentoOcorrencia, 
 
                 naturezaData: {
                     labels: naturezaSorted.map(([label]) => label),
@@ -721,6 +719,12 @@
                             ...lightChartConfig.scales.y,
                             title: { display: true, text: 'Contagem', color: '#4b5563' },
                             beginAtZero: true
+                        },
+                        x: {
+                            ...lightChartConfig.scales.x,
+                            // Garante que os rótulos longos de turno sejam visíveis
+                            maxRotation: 45, 
+                            minRotation: 45
                         }
                     }
                 }
